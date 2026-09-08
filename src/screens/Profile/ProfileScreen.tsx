@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,14 +14,21 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme';
+import { LANGUAGES, LanguageCode } from '../../i18n/languages';
+import { changeLanguage } from '../../i18n';
 
 interface UserProfile {
   name: string;
   email: string;
+  phone: string;
   country: string;
+  age: string;
+  gender: string;
   symptomChecks: number;
   articlesRead: number;
   doctorsSaved: number;
@@ -31,7 +38,10 @@ interface UserProfile {
 const DEFAULT_PROFILE: UserProfile = {
   name: '',
   email: '',
+  phone: '',
   country: '',
+  age: '',
+  gender: '',
   symptomChecks: 0,
   articlesRead: 0,
   doctorsSaved: 0,
@@ -40,17 +50,25 @@ const DEFAULT_PROFILE: UserProfile = {
 
 export default function ProfileScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { t, i18n } = useTranslation();
   const [notifications, setNotifications] = useState(true);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [editModal, setEditModal] = useState(false);
+  const [languageModal, setLanguageModal] = useState(false);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAge, setEditAge] = useState('');
+  const [editGender, setEditGender] = useState('');
   const [loading, setLoading] = useState(true);
   const [detectingLocation, setDetectingLocation] = useState(false);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  // Reload profile every time screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {
@@ -91,60 +109,81 @@ export default function ProfileScreen({ navigation }: any) {
 
   const saveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert('Error', 'Please enter your name');
+      Alert.alert(t('errorTitle'), t('enterNameError'));
       return;
     }
-    const updated = { ...profile, name: editName.trim(), email: editEmail.trim() };
+    const updated = {
+      ...profile,
+      name: editName.trim(),
+      email: editEmail.trim(),
+      phone: editPhone.trim(),
+      age: editAge.trim(),
+      gender: editGender.trim(),
+    };
     setProfile(updated);
     await AsyncStorage.setItem('kallemind_profile', JSON.stringify(updated));
     setEditModal(false);
-    Alert.alert('Saved!', 'Your profile has been updated.');
+    Alert.alert(t('savedTitle'), t('profileUpdated'));
   };
 
   const openEditModal = () => {
     setEditName(profile.name);
     setEditEmail(profile.email);
+    setEditPhone(profile.phone || '');
+    setEditAge(profile.age || '');
+    setEditGender(profile.gender || '');
     setEditModal(true);
   };
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete all your data? This cannot be undone.',
+      t('deleteAccountTitle'),
+      t('deleteAccountConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             await AsyncStorage.removeItem('kallemind_profile');
             setProfile(DEFAULT_PROFILE);
-            Alert.alert('Done', 'Your data has been deleted.');
+            Alert.alert(t('doneTitle'), t('dataDeleted'));
           },
         },
       ]
     );
   };
 
-  // Removed the standalone "Notifications" menu item — it duplicated the
-  // Push Notifications switch above and just alerted the user to use that
-  // switch instead of doing anything itself.
-  // Merged "Privacy & Security" into "Help & Support" since both opened the
-  // same mailto link and offered no distinct action of their own.
-  const menuItems = [
-    { icon: 'help-circle-outline' as const, label: 'Help & Support', action: 'help' },
-    { icon: 'card-outline' as const, label: 'Subscription & Billing', action: 'subscription' },
-    { icon: 'document-text-outline' as const, label: 'Terms & Conditions', action: 'terms' },
-    { icon: 'trash-outline' as const, label: 'Delete My Data', action: 'delete' },
+  // Two groups now: general Settings, and a dedicated Legal group.
+  // labels now come from t(), icons/actions untouched.
+  const settingsItems = [
+    { icon: 'card-outline' as const, label: t('subscriptionBilling'), action: 'subscription' },
+    { icon: 'language-outline' as const, label: t('language'), action: 'language' },
+    { icon: 'help-circle-outline' as const, label: t('helpSupport'), action: 'help' },
+    { icon: 'trash-outline' as const, label: t('deleteData'), action: 'delete' },
+  ];
+
+  const legalItems = [
+    { icon: 'shield-checkmark-outline' as const, label: t('privacyPolicy'), action: 'privacyPolicy' },
+    { icon: 'document-text-outline' as const, label: t('termsOfUse'), action: 'terms' },
+    { icon: 'medkit-outline' as const, label: t('healthDisclaimer'), action: 'healthDisclaimer' },
   ];
 
   const handleMenu = (action: string) => {
     switch (action) {
       case 'subscription': navigation.navigate('Subscription'); break;
-      case 'help': Linking.openURL('mailto:kallemind@gmail.com?subject=Help & Support'); break;
+      case 'language': setLanguageModal(true); break;
+      case 'help': navigation.navigate('Help'); break;
       case 'terms': navigation.navigate('Terms'); break;
+      case 'privacyPolicy': navigation.navigate('PrivacyPolicy'); break;
+      case 'healthDisclaimer': navigation.navigate('HealthDisclaimer'); break;
       case 'delete': handleDeleteAccount(); break;
     }
+  };
+
+  const handleSelectLanguage = async (code: LanguageCode) => {
+    await changeLanguage(code);
+    setLanguageModal(false);
   };
 
   if (loading) {
@@ -159,12 +198,38 @@ export default function ProfileScreen({ navigation }: any) {
     ? profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : '?';
 
+  const renderMenuGroup = (items: typeof settingsItems) => (
+    <View style={styles.menuContainer}>
+      {items.map((item, i) => (
+        <TouchableOpacity
+          key={i}
+          style={[
+            styles.menuItem,
+            i < items.length - 1 && styles.menuItemBorder,
+            item.action === 'delete' && styles.menuItemDanger,
+          ]}
+          onPress={() => handleMenu(item.action)}
+        >
+          <Ionicons
+            name={item.icon}
+            size={20}
+            color={item.action === 'delete' ? colors.error : colors.text.secondary}
+          />
+          <Text style={[styles.menuLabel, item.action === 'delete' && { color: colors.error }]}>
+            {item.label}
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.text.secondary} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        <Text style={styles.headerSub}>Manage your account</Text>
+        <Text style={styles.headerTitle}>{t('myProfile')}</Text>
+        <Text style={styles.headerSub}>{t('manageAccount')}</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -176,17 +241,25 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
-              {profile.name || 'Your Name'}
+              {profile.name || t('yourNamePlaceholder')}
             </Text>
             <Text style={styles.profileEmail}>
-              {profile.email || 'Add your email'}
+              {profile.email || t('addYourEmailPlaceholder')}
             </Text>
+            {profile.phone ? (
+              <Text style={styles.profileCountry}>📞 {profile.phone}</Text>
+            ) : null}
+            {profile.age || profile.gender ? (
+              <Text style={styles.profileCountry}>
+                {profile.age ? `🎂 ${profile.age} ${t('yrsSuffix')}` : ''}{profile.age && profile.gender ? '  ' : ''}{profile.gender ? `⚧ ${profile.gender}` : ''}
+              </Text>
+            ) : null}
             {profile.country ? (
               <Text style={styles.profileCountry}>📍 {profile.country}</Text>
             ) : null}
             <View style={styles.planBadge}>
               <Ionicons name="star" size={11} color={colors.accentBlue} />
-              <Text style={styles.planText}>{profile.plan} Plan</Text>
+              <Text style={styles.planText}>{profile.plan} {t('planSuffix')}</Text>
             </View>
           </View>
           <TouchableOpacity onPress={openEditModal}>
@@ -199,8 +272,8 @@ export default function ProfileScreen({ navigation }: any) {
           <TouchableOpacity style={styles.setupBanner} onPress={openEditModal}>
             <Ionicons name="person-add-outline" size={20} color={colors.white} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.setupTitle}>Set up your profile</Text>
-              <Text style={styles.setupSub}>Add your name and email to personalise your experience</Text>
+              <Text style={styles.setupTitle}>{t('setupProfile')}</Text>
+              <Text style={styles.setupSub}>{t('setupProfileSub')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.white} />
           </TouchableOpacity>
@@ -210,30 +283,30 @@ export default function ProfileScreen({ navigation }: any) {
         {profile.plan === 'Free' && (
           <TouchableOpacity style={styles.upgradeBanner} onPress={() => navigation.navigate('Subscription')}>
             <View>
-              <Text style={styles.upgradeTitle}>Upgrade to Premium</Text>
-              <Text style={styles.upgradeSub}>Unlock unlimited AI checks and more</Text>
+              <Text style={styles.upgradeTitle}>{t('upgradePremium')}</Text>
+              <Text style={styles.upgradeSub}>{t('unlockUnlimited')}</Text>
             </View>
             <Ionicons name="arrow-forward-circle" size={32} color={colors.white} />
           </TouchableOpacity>
         )}
 
         {/* Stats */}
-        <Text style={styles.sectionLabel}>Your Activity</Text>
+        <Text style={styles.sectionLabel}>{t('yourActivity')}</Text>
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="search" size={20} color={colors.accentBlue} />
+            <Ionicons name="search" size={18} color={colors.accentBlue} />
             <Text style={styles.statNumber}>{profile.symptomChecks}</Text>
-            <Text style={styles.statLabel}>Symptom Checks</Text>
+            <Text style={styles.statLabel}>{t('symptomChecks')}</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="book" size={20} color={colors.accentGreen} />
+            <Ionicons name="book" size={18} color={colors.accentGreen} />
             <Text style={styles.statNumber}>{profile.articlesRead}</Text>
-            <Text style={styles.statLabel}>Articles Read</Text>
+            <Text style={styles.statLabel}>{t('articlesRead')}</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="people" size={20} color='#9F7AEA' />
+            <Ionicons name="people" size={18} color='#9F7AEA' />
             <Text style={styles.statNumber}>{profile.doctorsSaved}</Text>
-            <Text style={styles.statLabel}>Doctors Saved</Text>
+            <Text style={styles.statLabel}>{t('doctorsSaved')}</Text>
           </View>
         </View>
 
@@ -241,7 +314,7 @@ export default function ProfileScreen({ navigation }: any) {
         <View style={styles.toggleCard}>
           <View style={styles.toggleLeft}>
             <Ionicons name="notifications-outline" size={20} color={colors.navBackground} />
-            <Text style={styles.toggleLabel}>Push Notifications</Text>
+            <Text style={styles.toggleLabel}>{t('pushNotifications')}</Text>
           </View>
           <Switch
             value={notifications}
@@ -251,31 +324,13 @@ export default function ProfileScreen({ navigation }: any) {
           />
         </View>
 
-        {/* Menu */}
-        <Text style={styles.sectionLabel}>Settings</Text>
-        <View style={styles.menuContainer}>
-          {menuItems.map((item, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[
-                styles.menuItem,
-                i < menuItems.length - 1 && styles.menuItemBorder,
-                item.action === 'delete' && styles.menuItemDanger,
-              ]}
-              onPress={() => handleMenu(item.action)}
-            >
-              <Ionicons
-                name={item.icon}
-                size={20}
-                color={item.action === 'delete' ? colors.error : colors.text.secondary}
-              />
-              <Text style={[styles.menuLabel, item.action === 'delete' && { color: colors.error }]}>
-                {item.label}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.text.secondary} />
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Settings menu */}
+        <Text style={styles.sectionLabel}>{t('settings')}</Text>
+        {renderMenuGroup(settingsItems)}
+
+        {/* Legal menu — required for GDPR + app store compliance */}
+        <Text style={styles.sectionLabel}>{t('privacySecurity')}</Text>
+        {renderMenuGroup(legalItems)}
 
         {/* Contact */}
         <TouchableOpacity
@@ -286,55 +341,126 @@ export default function ProfileScreen({ navigation }: any) {
           <Text style={styles.contactBtnText}>kallemind@gmail.com</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>KalleMind v1.0.0 · Your Health. Connected.</Text>
+        <Text style={styles.version}>{t('version')}</Text>
       </ScrollView>
 
       {/* Edit Profile Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
         <View style={styles.modalBg}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-              <TouchableOpacity onPress={() => setEditModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text.primary} />
+          <ScrollView contentContainerStyle={{ justifyContent: 'flex-end', flexGrow: 1 }}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{t('editProfile')}</Text>
+                <TouchableOpacity onPress={() => setEditModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.text.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inputLabel}>{t('fullName')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t('fullNamePlaceholder')}
+                placeholderTextColor={colors.text.muted}
+                value={editName}
+                onChangeText={setEditName}
+              />
+
+              <Text style={styles.inputLabel}>{t('emailAddress')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t('emailPlaceholder')}
+                placeholderTextColor={colors.text.muted}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.inputLabel}>{t('phoneNumber')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+263 77 123 4567"
+                placeholderTextColor={colors.text.muted}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                keyboardType="phone-pad"
+              />
+
+              <View style={styles.rowInputs}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>{t('age')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t('agePlaceholder')}
+                    placeholderTextColor={colors.text.muted}
+                    value={editAge}
+                    onChangeText={setEditAge}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>{t('gender')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t('genderPlaceholder')}
+                    placeholderTextColor={colors.text.muted}
+                    value={editGender}
+                    onChangeText={setEditGender}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.inputLabel}>{t('country')}</Text>
+              <View style={styles.countryRow}>
+                <Text style={styles.countryValue}>
+                  {detectingLocation ? t('detecting') : profile.country || t('notDetected')}
+                </Text>
+                <TouchableOpacity style={styles.detectBtn} onPress={detectCountry}>
+                  <Ionicons name="location" size={14} color={colors.white} />
+                  <Text style={styles.detectBtnText}>{t('detect')}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.saveBtn} onPress={saveProfile}>
+                <Text style={styles.saveBtnText}>{t('saveProfile')}</Text>
               </TouchableOpacity>
             </View>
+          </ScrollView>
+        </View>
+      </Modal>
 
-            <Text style={styles.inputLabel}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. John Doe"
-              placeholderTextColor={colors.text.muted}
-              value={editName}
-              onChangeText={setEditName}
-            />
+      {/* Language Picker Modal — new. Tapping a language calls changeLanguage(),
+          which updates i18next immediately (every screen using useTranslation
+          re-renders) and persists the choice to AsyncStorage. */}
+      <Modal visible={languageModal} animationType="slide" transparent>
+        <View style={styles.modalBg}>
+          <ScrollView contentContainerStyle={{ justifyContent: 'flex-end', flexGrow: 1 }}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{t('language')}</Text>
+                <TouchableOpacity onPress={() => setLanguageModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.text.primary} />
+                </TouchableOpacity>
+              </View>
 
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="you@email.com"
-              placeholderTextColor={colors.text.muted}
-              value={editEmail}
-              onChangeText={setEditEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={styles.inputLabel}>Country</Text>
-            <View style={styles.countryRow}>
-              <Text style={styles.countryValue}>
-                {detectingLocation ? 'Detecting...' : profile.country || 'Not detected'}
-              </Text>
-              <TouchableOpacity style={styles.detectBtn} onPress={detectCountry}>
-                <Ionicons name="location" size={14} color={colors.white} />
-                <Text style={styles.detectBtnText}>Detect</Text>
-              </TouchableOpacity>
+              {LANGUAGES.map((lang) => (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={[
+                    styles.languageRow,
+                    i18n.language === lang.code && styles.languageRowActive,
+                  ]}
+                  onPress={() => handleSelectLanguage(lang.code as LanguageCode)}
+                >
+                  <Text style={styles.languageFlag}>{lang.flag}</Text>
+                  <Text style={styles.languageName}>{lang.nativeName}</Text>
+                  {i18n.language === lang.code && (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.accentGreen} />
+                  )}
+                </TouchableOpacity>
+              ))}
             </View>
-
-            <TouchableOpacity style={styles.saveBtn} onPress={saveProfile}>
-              <Text style={styles.saveBtnText}>Save Profile</Text>
-            </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -363,13 +489,9 @@ const styles = StyleSheet.create({
   upgradeSub: { color: 'rgba(255,255,255,0.85)', fontSize: fontSizes.xs, marginTop: 2 },
   sectionLabel: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.accentGreen },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.md },
-  // Fixed: labels were clipping their last word on some devices because
-  // lineHeight (14) was too tight for fontSize (10) combined with a manually
-  // forced line break. Cards now have a minHeight floor and text wraps
-  // naturally instead of using a hard-coded '\n'.
-  statCard: { flex: 1, backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: colors.border, gap: 4, minHeight: 92 },
-  statNumber: { color: colors.navBackground, fontWeight: '800', fontSize: fontSizes.xl },
-  statLabel: { color: colors.text.secondary, fontSize: 10, textAlign: 'center', lineHeight: 16 },
+  statCard: { flex: 1, minWidth: 0, backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: colors.border, gap: 2 },
+  statNumber: { color: colors.navBackground, fontWeight: '800', fontSize: fontSizes.lg },
+  statLabel: { color: colors.text.secondary, fontSize: 9, textAlign: 'center', lineHeight: 13, width: '100%' },
   toggleCard: { backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.md, marginHorizontal: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   toggleLabel: { color: colors.text.primary, fontSize: fontSizes.sm, fontWeight: '600' },
@@ -385,6 +507,7 @@ const styles = StyleSheet.create({
   modalSheet: { backgroundColor: colors.card, borderRadius: 20, padding: spacing.lg, paddingBottom: spacing.xl },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
   modalTitle: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.navBackground },
+  rowInputs: { flexDirection: 'row', gap: spacing.sm },
   inputLabel: { fontSize: fontSizes.sm, fontWeight: '600', color: colors.text.secondary, marginBottom: spacing.xs, marginTop: spacing.sm },
   input: { backgroundColor: '#f0f5fa', borderRadius: borderRadius.md, padding: spacing.md, color: colors.text.primary, fontSize: fontSizes.sm, borderWidth: 1, borderColor: colors.border },
   countryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: '#f0f5fa', borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
@@ -393,4 +516,8 @@ const styles = StyleSheet.create({
   detectBtnText: { color: colors.white, fontSize: fontSizes.xs, fontWeight: '700' },
   saveBtn: { backgroundColor: colors.accentGreen, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.lg },
   saveBtnText: { color: colors.white, fontWeight: '800', fontSize: fontSizes.md },
+  languageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderRadius: borderRadius.md },
+  languageRowActive: { backgroundColor: '#e1f5ee' },
+  languageFlag: { fontSize: 24 },
+  languageName: { flex: 1, fontSize: fontSizes.sm, fontWeight: '600', color: colors.text.primary },
 });

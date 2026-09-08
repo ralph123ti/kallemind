@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,23 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme';
+import { useSubscription } from './useSubscription';
+import { useTranslation } from 'react-i18next';
+
+// -----------------------------------------------------------------------
+// Patient SKU placeholders — swap for your real App Store Connect /
+// Google Play Console product IDs once they're created.
+// -----------------------------------------------------------------------
+const PLAN_SKUS: Record<string, string> = {
+  premium: 'com.yourapp.premium.monthly',
+  pro: 'com.yourapp.pro.monthly',
+};
 
 const plans = [
   {
@@ -64,21 +77,97 @@ const plans = [
   },
 ];
 
+// Compliance/info cards shown below the plans. Keeping these as short,
+// scannable blocks (rather than one big wall of text) matches how the
+// pricing cards above are already presented, and mirrors what Apple/Google
+// reviewers specifically look for: clear auto-renewal disclosure, a way to
+// manage/cancel, and confirmation that no card data is stored by the app.
+const infoSections = [
+  {
+    icon: 'card-outline' as const,
+    title: 'Billing & Payments',
+    body: 'Payments are securely processed by the Apple App Store or Google Play Store. We do not collect or store any payment card information. Subscriptions are managed entirely through your Apple ID or Google Play account.',
+  },
+  {
+    icon: 'refresh-outline' as const,
+    title: 'Auto-Renewal',
+    body: 'Subscriptions automatically renew unless canceled at least 24 hours before the renewal date. You can manage or cancel your subscription anytime in your device settings.',
+  },
+  {
+    icon: 'settings-outline' as const,
+    title: 'Managing Your Subscription',
+    body: Platform.OS === 'ios'
+      ? 'iOS: Settings → Apple ID → Subscriptions.'
+      : 'Android: Google Play Store → Payments & Subscriptions.',
+  },
+  {
+    icon: 'earth-outline' as const,
+    title: 'Pricing Transparency',
+    body: 'All prices are clearly displayed in your local currency before purchase. Pricing may vary by region.',
+  },
+  {
+    icon: 'medkit-outline' as const,
+    title: 'Important Notice',
+    body: 'KalleMind provides general health education only. It does not provide medical diagnosis, treatment recommendations, or emergency medical advice. Always consult a qualified healthcare professional for medical concerns.',
+  },
+];
+
 export default function SubscriptionScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState('premium');
+  const { t } = useTranslation();
+  const [selected, setSelected] = React.useState('premium');
 
-  const handleSubscribe = () => {
-    const plan = plans.find(p => p.id === selected);
-    if (!plan || plan.id === 'free') {
+  const { purchasing, buy, completePurchase, restore, initError } = useSubscription({
+    skus: Object.values(PLAN_SKUS),
+    onPurchaseUpdate: async (purchase) => {
+      // -----------------------------------------------------------------
+      // TODO (backend): send purchase.transactionReceipt (iOS) or
+      // purchase.purchaseToken (Android) to your verify-purchase endpoint
+      // here. Only call completePurchase once the backend confirms the
+      // receipt is valid. For now this completes immediately so you can
+      // test the flow before the backend route exists.
+      //
+      // const verified = await verifyPurchaseOnBackend(purchase);
+      // if (verified) await completePurchase(purchase);
+      // -----------------------------------------------------------------
+      await completePurchase(purchase);
+      Alert.alert('Success', 'Your subscription is active!');
+    },
+    onPurchaseError: (error) => {
+      Alert.alert('Purchase Error', error.message);
+    },
+  });
+
+  const handleSubscribe = async (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+
+    if (plan.id === 'free') {
       Alert.alert('Free Plan', 'You are already on the free plan!');
       return;
     }
-    Alert.alert(
-      'Coming Soon',
-      `${plan.name} payments will be available soon. We will notify you when it launches!`,
-      [{ text: 'OK' }]
-    );
+
+    const sku = PLAN_SKUS[planId];
+    try {
+      await buy(sku);
+    } catch (err: any) {
+      Alert.alert('Unable to Start Purchase', err?.message ?? 'Please try again.');
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      const purchases = await restore();
+      const activeSkus = Object.values(PLAN_SKUS);
+      const found = purchases.find((p) => activeSkus.includes(p.productId));
+      if (found) {
+        Alert.alert('Restored', 'Your subscription has been restored.');
+      } else {
+        Alert.alert('Nothing to Restore', 'No active subscription was found for this account.');
+      }
+    } catch (err: any) {
+      Alert.alert('Restore Failed', err?.message ?? 'Please try again.');
+    }
   };
 
   return (
@@ -95,14 +184,21 @@ export default function SubscriptionScreen({ navigation }: any) {
       <View style={styles.content}>
         {/* Hero */}
         <View style={styles.hero}>
-          <Text style={styles.heroTitle}>⭐ Upgrade KaliMed</Text>
-          <Text style={styles.heroDesc}>Smart features. Flexible choices. Better health for everyone.</Text>
+          <Text style={styles.heroTitle}>⭐ Upgrade KalleMind</Text>
+          <Text style={styles.heroDesc}>
+            Access trusted health education content anytime, anywhere. Free and premium tiers, designed to help you understand health and wellness topics simply.
+          </Text>
         </View>
+
+        {initError && (
+          <Text style={styles.errorText}>Store connection issue: {initError}</Text>
+        )}
 
         {/* Plans */}
         {plans.map(plan => (
           <TouchableOpacity
             key={plan.id}
+            activeOpacity={0.8}
             style={[styles.planCard, selected === plan.id && { borderColor: plan.color, borderWidth: 2 }]}
             onPress={() => setSelected(plan.id)}
           >
@@ -133,17 +229,47 @@ export default function SubscriptionScreen({ navigation }: any) {
                 ? { backgroundColor: plan.color }
                 : { backgroundColor: colors.white, borderWidth: 1.5, borderColor: plan.color }
               ]}
-              onPress={() => { setSelected(plan.id); handleSubscribe(); }}
+              onPress={() => { setSelected(plan.id); handleSubscribe(plan.id); }}
+              disabled={purchasing}
             >
-              <Text style={[styles.planBtnText, { color: selected === plan.id ? colors.white : plan.color }]}>
-                {plan.id === 'free' ? 'Get Started Free' : `Start ${plan.name} — ${plan.price}/mo`}
-              </Text>
+              {purchasing && selected === plan.id ? (
+                <ActivityIndicator color={selected === plan.id ? colors.white : plan.color} />
+              ) : (
+                <Text style={[styles.planBtnText, { color: selected === plan.id ? colors.white : plan.color }]}>
+                  {plan.id === 'free' ? 'Get Started Free' : `Start ${plan.name} — ${plan.price}/mo`}
+                </Text>
+              )}
             </TouchableOpacity>
           </TouchableOpacity>
         ))}
 
+        <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore}>
+          <Text style={styles.restoreBtnText}>Restore Purchases</Text>
+        </TouchableOpacity>
+
+        {/* Compliance / billing info */}
+        <Text style={styles.sectionLabel}>Subscription Details</Text>
+        <View style={styles.infoContainer}>
+          {infoSections.map((section, i) => (
+            <View
+              key={i}
+              style={[styles.infoItem, i < infoSections.length - 1 && styles.infoItemBorder]}
+            >
+              <Ionicons name={section.icon} size={18} color={colors.accentGreen} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoTitle}>{section.title}</Text>
+                <Text style={styles.infoBody}>{section.body}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.mission}>
+          We believe health education should be simple, accessible, and available globally. Premium subscriptions help us continue improving content and expanding access worldwide.
+        </Text>
+
         <Text style={styles.footer}>
-          Managed via App Store / Google Play.{'\n'}No account required for free features.
+          {t('common.save')}
         </Text>
       </View>
 
@@ -197,6 +323,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  errorText: {
+    fontSize: fontSizes.xs,
+    color: '#c0392b',
+    marginBottom: spacing.md,
+    textAlign: 'center',
   },
   planCard: {
     backgroundColor: colors.card,
@@ -271,6 +403,61 @@ const styles = StyleSheet.create({
   planBtnText: {
     fontWeight: '700',
     fontSize: fontSizes.sm,
+  },
+  restoreBtn: {
+    alignItems: 'center',
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  restoreBtnText: {
+    color: colors.accentGreen,
+    fontWeight: '600',
+    fontSize: fontSizes.xs,
+  },
+  sectionLabel: {
+    fontSize: fontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.accentGreen,
+    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  infoContainer: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  infoItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  infoTitle: {
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    color: colors.navBackground,
+    marginBottom: 2,
+  },
+  infoBody: {
+    fontSize: fontSizes.xs,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  mission: {
+    fontSize: fontSizes.xs,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: spacing.md,
+    fontStyle: 'italic',
   },
   footer: {
     fontSize: fontSizes.xs,

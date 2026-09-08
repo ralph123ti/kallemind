@@ -6,26 +6,46 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0d2137"
-    },
+    "plugins": [
+      "expo-iap",
+      "expo-localization",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0d2137"
+        }
+      ],
+      "expo-status-bar"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rtechsolutions.kallemind"
+      "bundleIdentifier": "com.rtechsolutions.kallemind",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0d2137"
       },
-      "edgeToEdgeEnabled": false,
       "package": "com.rtechsolutions.kallemind"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f0925d26-0915-4c3c-b383-6a5b33402fb4"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f0925d26-0915-4c3c-b383-6a5b33402fb4"
     }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -10,51 +10,99 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme';
+import { MONTHLY_USES_KEY, HAS_UNREAD_NOTIFS_KEY, FREE_MONTHLY_LIMIT } from '../../store/storageKeys';
 
-const quickActions = [
-  {
-    label: 'Symptom Checker',
-    sub: 'Type symptoms → urgency + doctor questions',
-    icon: 'search',
-    screen: 'Checker',
-    badge: 'No diagnosis',
-    color: '#1e6ab0',
-    image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400',
-  },
-  {
-    label: 'Doctor Prep Sheet',
-    sub: 'Auto timeline + checklist to screenshot',
-    icon: 'clipboard',
-    screen: 'Checker',
-    badge: 'On device',
-    color: '#0f6e56',
-    image: 'https://images.unsplash.com/photo-1607990281513-2c110a25bd8c?w=400',
-  },
-  {
-    label: 'Find Doctors',
-    sub: 'Browse profiles, book appointments',
-    icon: 'people',
-    screen: 'Doctors',
-    badge: 'Verified',
-    color: '#1d9e75',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
-  },
-  {
-    label: 'Health Articles',
-    sub: 'Vetted education-only content',
-    icon: 'book',
-    screen: 'Articles',
-    badge: '20 articles',
-    color: '#9F7AEA',
-    image: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=400',
-  },
-];
+// Moved inside a function (instead of a module-level const) because it now
+// depends on `t`, which is only available once useTranslation() runs inside
+// the component. Called once per render via getQuickActions(t) below.
+function getQuickActions(t: (key: string) => string) {
+  return [
+    {
+      label: t('symptomChecker'),
+      sub: t('symptomCheckerSub'),
+      icon: 'search',
+      screen: 'Checker',
+      params: { mode: 'symptom' },
+      badge: t('noDiagnosis'),
+      color: '#1e6ab0',
+      image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400',
+    },
+    {
+      label: t('doctorPrepSheet'),
+      sub: t('doctorPrepSheetSub'),
+      icon: 'clipboard',
+      screen: 'Checker',
+      params: { mode: 'prep' },
+      badge: t('onDevice'),
+      color: '#0f6e56',
+      image: 'https://images.unsplash.com/photo-1607990281513-2c110a25bd8c?w=400',
+    },
+    {
+      label: t('findDoctors'),
+      sub: t('findDoctorsSub'),
+      icon: 'people',
+      screen: 'Doctors',
+      params: undefined,
+      badge: t('verified'),
+      color: '#1d9e75',
+      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400',
+    },
+    {
+      label: t('healthArticles'),
+      sub: t('healthArticlesSub'),
+      icon: 'book',
+      screen: 'Articles',
+      params: undefined,
+      badge: t('articles20'),
+      color: '#9F7AEA',
+      image: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=400',
+    },
+  ];
+}
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const [uses] = useState(0);
-  const limit = 3;
+  const { t } = useTranslation();
+  const limit = FREE_MONTHLY_LIMIT;
+  const quickActions = getQuickActions(t);
+
+  const [uses, setUses] = useState(0);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      (async () => {
+        try {
+          const storedUses = await AsyncStorage.getItem(MONTHLY_USES_KEY);
+          if (isActive) {
+            setUses(storedUses ? parseInt(storedUses, 10) || 0 : 0);
+          }
+        } catch {
+          if (isActive) setUses(0);
+        }
+
+        try {
+          const storedFlag = await AsyncStorage.getItem(HAS_UNREAD_NOTIFS_KEY);
+          if (isActive) {
+            setHasUnreadNotifications(storedFlag === 'true');
+          }
+        } catch {
+          if (isActive) setHasUnreadNotifications(false);
+        }
+      })();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
+
   const pct = Math.min((uses / limit) * 100, 100);
 
   return (
@@ -62,24 +110,38 @@ export default function HomeScreen({ navigation }: any) {
       {/* Dark Navy Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.logoRow}>
-          <Image
-            source={require('../../../assets/logo.png')}
-            style={styles.logoImg}
-            resizeMode="contain"
-          />
+          {/* White patch behind the logo so it doesn't blend into the dark header */}
+          <View style={styles.logoImgWrap}>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
+          </View>
           <View style={styles.logoTextBox}>
             <Text style={styles.logoText} numberOfLines={1}>
               Kalle<Text style={styles.logoGreen}>Mind</Text>
             </Text>
-            <Text style={styles.logoTag} numberOfLines={1}>Discover. Learn. Connect.</Text>
+            {/* Brand name "KalleMind" is intentionally NOT translated */}
+            <Text style={styles.logoTag} numberOfLines={1}>{t('appTagline')}</Text>
           </View>
           <View style={styles.headerIcons}>
-            <TouchableOpacity style={styles.headerIcon} onPress={() => navigation.navigate('Articles')}>
+            <TouchableOpacity
+              style={styles.headerIcon}
+              onPress={() => navigation.navigate('Checker', { mode: 'symptom' })}
+              accessibilityRole="button"
+              accessibilityLabel={t('symptomChecker')}
+            >
               <Ionicons name="search" size={18} color={colors.text.nav} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerIcon}>
+            <TouchableOpacity
+              style={styles.headerIcon}
+              onPress={() => navigation.navigate('Notifications')}
+              accessibilityRole="button"
+              accessibilityLabel={t('notifications')}
+            >
               <Ionicons name="notifications" size={18} color={colors.text.nav} />
-              <View style={styles.notifDot} />
+              {hasUnreadNotifications && <View style={styles.notifDot} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -87,22 +149,22 @@ export default function HomeScreen({ navigation }: any) {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>🌍 150+ Countries · Free · No Sign-Up</Text>
+            <Text style={styles.heroBadgeText}>{t('heroBadge')}</Text>
           </View>
-          <Text style={styles.heroTitle}>Smart Health Info.{'\n'}<Text style={styles.heroTitleGreen}>Global Access.</Text></Text>
-          <Text style={styles.heroSub}>Reliable health guidance and doctor tools — anytime, anywhere.</Text>
+          <Text style={styles.heroTitle}>{t('heroTitle')}{'\n'}<Text style={styles.heroTitleGreen}>{t('heroGlobal')}</Text></Text>
+          <Text style={styles.heroSub}>{t('heroSub')}</Text>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statNum} numberOfLines={1} adjustsFontSizeToFit>{Math.max(limit - uses, 0)}</Text>
-              <Text style={styles.statLbl} numberOfLines={2}>Free checks left</Text>
+              <Text style={styles.statLbl} numberOfLines={2}>{t('freeChecks')}</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statNum} numberOfLines={1} adjustsFontSizeToFit>Free</Text>
-              <Text style={styles.statLbl} numberOfLines={2}>No login needed</Text>
+              <Text style={styles.statLbl} numberOfLines={2}>{t('noLogin')}</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statNum} numberOfLines={1} adjustsFontSizeToFit>100%</Text>
-              <Text style={styles.statLbl} numberOfLines={2}>Anonymous</Text>
+              <Text style={styles.statLbl} numberOfLines={2}>{t('anonymous')}</Text>
             </View>
           </View>
         </View>
@@ -112,15 +174,15 @@ export default function HomeScreen({ navigation }: any) {
       <View style={styles.disclaimer}>
         <Text style={styles.disclaimerText}>
           <Text style={styles.disclaimerBold}>⚠️ </Text>
-          KalleMind provides health <Text style={styles.disclaimerEmphasis}>information only</Text>. Not medical advice. Always consult a licensed healthcare professional.
+          {t('disclaimer')}
         </Text>
       </View>
 
       {/* Usage Bar */}
       <View style={styles.usageBox}>
         <View style={styles.usageTop}>
-          <Text style={styles.usageLbl}>Monthly Free Uses</Text>
-          <Text style={styles.usageCt}>{uses} / {limit} used</Text>
+          <Text style={styles.usageLbl}>{t('monthlyUses')}</Text>
+          <Text style={styles.usageCt}>{uses} / {limit}</Text>
         </View>
         <View style={styles.ubar}>
           <View style={[styles.ufill, { width: `${pct}%` as any, backgroundColor: uses >= limit ? colors.error : uses === limit - 1 ? colors.warning : colors.accentGreen }]} />
@@ -128,18 +190,28 @@ export default function HomeScreen({ navigation }: any) {
       </View>
 
       {/* Upgrade Strip */}
-      <TouchableOpacity style={styles.upgradeStrip} onPress={() => navigation.navigate('Subscription')}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.upgradeStripTitle}>Unlock Unlimited Access</Text>
-          <Text style={styles.upgradeStripSub}>$5.99/mo · $9.99/mo Pro</Text>
-        </View>
+      <TouchableOpacity
+        style={styles.upgradeStrip}
+        onPress={() => navigation.navigate('Subscription')}
+        accessibilityRole="button"
+        accessibilityLabel={t('unlockAccess')}
+      >
+        <Text style={styles.upgradeStripTitle}>{t('unlockAccess')}</Text>
+        {/* Prices stay as raw numbers/currency — not translated, but the
+            surrounding wording ("month", "Pro") now comes from t() if you
+            want it localized. Kept as-is here since the original had it
+            hardcoded with special spacing; wire up `t('perMonth')`-style
+            keys later if you want the whole sentence localized. */}
+        <Text style={styles.upgradeStripSub}>
+          $5.99{'\u00A0/\u00A0'}month{'\u00A0·\u00A0'}$9.99{'\u00A0/\u00A0'}month Pro
+        </Text>
         <View style={styles.upgradeStripBtn}>
-          <Text style={styles.upgradeStripBtnText}>Upgrade</Text>
+          <Text style={styles.upgradeStripBtnText}>{t('upgrade')}</Text>
         </View>
       </TouchableOpacity>
 
       {/* Section Label */}
-      <Text style={styles.sectionLbl}>Core Tools</Text>
+      <Text style={styles.sectionLbl}>{t('coreTools')}</Text>
 
       {/* Quick Actions Grid with Images */}
       <View style={styles.grid}>
@@ -147,35 +219,28 @@ export default function HomeScreen({ navigation }: any) {
           <TouchableOpacity
             key={i}
             style={styles.qcard}
-            onPress={() => navigation.navigate(action.screen)}
+            onPress={() => navigation.navigate(action.screen, action.params)}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            accessibilityHint={action.sub}
           >
-            {/* Card Image */}
             <Image
               source={{ uri: action.image }}
               style={styles.qcardImage}
               resizeMode="cover"
             />
-            {/* Fixed neutral dark fade (not tied to action.color) so the icon and badge
-                read the same way on every card, regardless of how bright/light the
-                underlying photo is — but fading to transparent instead of a hard bar,
-                so it reads as a natural photo shade rather than a slapped-on overlay */}
             <LinearGradient
               colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']}
               style={styles.qcardScrimTop}
               pointerEvents="none"
             />
-            {/* Thin accent-color strip at the very top, so each card still keeps
-                its own identity/color without covering the photo or the text */}
             <View style={[styles.qcardAccentStrip, { backgroundColor: action.color }]} />
-            {/* Icon on image */}
             <View style={[styles.qcardIconOnImage, { backgroundColor: action.color }]}>
               <Ionicons name={action.icon as any} size={20} color={colors.white} />
             </View>
-            {/* Badge on image */}
             <View style={styles.qcardBadgeOnImage}>
               <Text style={styles.qcardBadgeOnImageText}>{action.badge}</Text>
             </View>
-            {/* Content below image */}
             <View style={styles.qcardContent}>
               <Text style={styles.qcardTitle}>{action.label}</Text>
               <Text style={styles.qcardSub} numberOfLines={2}>{action.sub}</Text>
@@ -193,7 +258,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { backgroundColor: colors.navBackground },
   logoRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, gap: spacing.sm },
-  logoImg: { width: 36, height: 36, borderRadius: 6 },
+  // White circular patch behind the logo image so it doesn't blend into the dark header
+  logoImgWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoImg: { width: 34, height: 34, borderRadius: 4 },
   logoTextBox: { flex: 1, minWidth: 0 },
   logoText: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.white, lineHeight: 20 },
   logoGreen: { color: colors.accentGreen },
@@ -207,21 +281,13 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.white, textAlign: 'center', lineHeight: 30, marginBottom: spacing.sm },
   heroTitleGreen: { color: colors.accentGreen },
   heroSub: { fontSize: fontSizes.sm, color: colors.text.nav, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
-  // space-between + flex:1 on each stat gives long labels ("100% / Anonymous") room to wrap
-  // instead of clipping against their neighbor
   statsRow: { flexDirection: 'row', width: '100%' },
-  // minWidth: 0 is the key fix — without it, a flex row child in RN can refuse to
-  // shrink below its content's natural (unwrapped) width, which is what was
-  // pushing "Anonymous" past the edge of its column and clipping it.
   stat: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 2 },
   statNum: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.accentGreen },
   statLbl: { fontSize: fontSizes.xs, color: colors.text.muted, marginTop: 1, textAlign: 'center', width: '100%' },
   disclaimer: { backgroundColor: '#fff8e6', borderLeftWidth: 3, borderLeftColor: colors.warning, padding: spacing.sm, margin: spacing.md, borderRadius: borderRadius.sm },
   disclaimerText: { fontSize: fontSizes.xs, color: '#5a3e00', lineHeight: 18 },
   disclaimerBold: { fontWeight: '700' },
-  // was fontStyle: 'italic' — custom fonts usually don't ship an italic weight,
-  // so RN silently swapped in the system italic font for just this word.
-  // Using weight + color keeps the same font family throughout.
   disclaimerEmphasis: { fontWeight: '700', color: '#3d2c00' },
   usageBox: { backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.md, marginHorizontal: spacing.md, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
   usageTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
@@ -229,25 +295,34 @@ const styles = StyleSheet.create({
   usageCt: { fontSize: fontSizes.xs, color: colors.text.secondary },
   ubar: { height: 6, backgroundColor: colors.border, borderRadius: borderRadius.full, overflow: 'hidden' },
   ufill: { height: '100%', borderRadius: borderRadius.full },
-  upgradeStrip: { backgroundColor: colors.accentGreen, borderRadius: borderRadius.md, padding: spacing.md, marginHorizontal: spacing.md, marginBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  upgradeStrip: {
+    backgroundColor: colors.accentGreen,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
   upgradeStripTitle: { color: colors.white, fontSize: fontSizes.sm, fontWeight: '700' },
-  upgradeStripSub: { color: 'rgba(255,255,255,0.75)', fontSize: fontSizes.xs, marginTop: 1 },
-  upgradeStripBtn: { backgroundColor: colors.white, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, flexShrink: 0 },
+  upgradeStripSub: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: fontSizes.xs,
+    marginTop: 1,
+    marginBottom: spacing.sm,
+  },
+  upgradeStripBtn: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    alignSelf: 'flex-start',
+  },
   upgradeStripBtnText: { color: colors.accentGreenDark, fontSize: fontSizes.xs, fontWeight: '700' },
   sectionLbl: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.accentGreen },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.md, gap: spacing.sm },
   qcard: { backgroundColor: colors.card, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, width: '47%', overflow: 'hidden' },
   qcardImage: { width: '100%', height: 90, backgroundColor: colors.border },
-  // fixed, photo-independent dark-to-transparent fade behind the icon/badge row — this is
-  // what guarantees consistent contrast on every card instead of contrast varying with each
-  // card's own accent color and photo brightness. Taller than the icon/badge row itself so
-  // the gradient has room to fully fade out before it would otherwise look like a hard edge.
   qcardScrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 60 },
-  // a slim strip of the card's own color along the very top edge, so cards keep their
-  // individual identity without tinting the photo or reducing text contrast
   qcardAccentStrip: { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
-  // solid (not translucent) icon chip in the card's accent color — always high-contrast
-  // against the white icon, regardless of the photo underneath
   qcardIconOnImage: { position: 'absolute', top: spacing.sm + 2, left: spacing.sm, width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   qcardBadgeOnImage: { position: 'absolute', top: spacing.sm + 2, right: spacing.sm, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: borderRadius.full, paddingHorizontal: spacing.xs, paddingVertical: 2 },
   qcardBadgeOnImageText: { color: colors.white, fontSize: fontSizes.xs - 2, fontWeight: '700' },

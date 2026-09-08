@@ -272,6 +272,9 @@ export default function SplashScreen({ navigation }: any) {
           {/* Logo glow */}
           <Animated.View style={[styles.logoGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
 
+          {/* White circular patch behind the logo so it doesn't blend into the dark background */}
+          <View style={styles.logoWhiteBacking} />
+
           {/* Logo */}
           <Animated.View style={{
             opacity: logoOpacity,
@@ -438,9 +441,18 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     backgroundColor: colors.accentGreen,
   },
+  // White circular patch sized a bit larger than the logo so it always shows
+  // a clean white edge around the logo regardless of the logo's own aspect ratio
+  logoWhiteBacking: {
+    position: 'absolute',
+    width: width * 0.62,
+    height: width * 0.62,
+    borderRadius: (width * 0.62) / 2,
+    backgroundColor: '#ffffff',
+  },
   logo: {
-    width: width * 0.75,
-    height: width * 0.4,
+    width: width * 0.5,
+    height: width * 0.27,
   },
   tagline: {
     fontSize: fontSizes.md,

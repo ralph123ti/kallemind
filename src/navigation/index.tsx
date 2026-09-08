@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -6,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
+import DisclaimerBanner from '../components/DisclaimerBanner';
 
 import HomeScreen from '../screens/Home/HomeScreen';
 import SymptomCheckerScreen from '../screens/SymptomChecker/SymptomCheckerScreen';
@@ -13,8 +15,13 @@ import DoctorsScreen from '../screens/Doctors/DoctorsScreen';
 import ArticlesScreen from '../screens/Articles/ArticlesScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 import SubscriptionScreen from '../screens/Subscription/SubscriptionScreen';
+import DoctorSubscriptionScreen from '../screens/Subscription/DoctorSubscriptionScreen';
 import SplashScreen from '../screens/Splash/SplashScreen';
 import TermsScreen from '../screens/Terms/TermsScreen';
+import HelpScreen from '../screens/Help/HelpScreen';
+// New: Privacy Policy and Health Disclaimer screens, both live in screens/Legal
+import PrivacyPolicyScreen from '../screens/Legal/PrivacyPolicyScreen';
+import HealthDisclaimerScreen from '../screens/Legal/HealthDisclaimerScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,10 +48,6 @@ function MainTabs() {
           paddingBottom: Platform.OS === 'android' ? insets.bottom : 8,
           paddingTop: 4,
           elevation: 0,
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
         },
         tabBarActiveTintColor: colors.accentGreen,
         tabBarInactiveTintColor: '#4a6a80',
@@ -76,13 +79,22 @@ function MainTabs() {
 
 export default function Navigation() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="Subscription" component={SubscriptionScreen} />
-        <Stack.Screen name="Terms" component={TermsScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <View style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+          {/* New: doctor paywall, reached at the end of doctor signup/onboarding */}
+          <Stack.Screen name="DoctorSubscription" component={DoctorSubscriptionScreen} />
+          <Stack.Screen name="Terms" component={TermsScreen} />
+          <Stack.Screen name="Help" component={HelpScreen} />
+          {/* New: reachable from Profile > Legal */}
+          <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+          <Stack.Screen name="HealthDisclaimer" component={HealthDisclaimerScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+      <DisclaimerBanner />
+    </View>
   );
 }
