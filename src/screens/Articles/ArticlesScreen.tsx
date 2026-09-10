@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
   Image,
   ImageSourcePropType,
+  BackHandler,
 } from 'react-native';
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme';
@@ -25,6 +25,10 @@ interface Article {
   title: string;
   category: string;
   readTime: string;
+  // Short one-line preview shown on the list card. Kept separate from
+  // `content` so the card doesn't just show a truncated slice of the
+  // first answer/section out of context.
+  summary: string;
   // Cover photo shown on the article list card + detail header.
   image?: ImageSourcePropType;
   content: ContentBlock[];
@@ -77,6 +81,15 @@ const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
 // matching the existing `../../theme` import above. Change `../../assets`
 // if this screen lives somewhere else.
 // ---------------------------------------------------------------------
+
+// Partner logo(s) shown in the "Our Partners" section at the bottom of the
+// list screen. Same bundled-asset pattern as `covers` above — drop the
+// actual PSZ logo file at this path (any reasonably square PNG/JPG works,
+// it's rendered inside a circular frame). Swap the path if your logo lives
+// somewhere else in /assets.
+const partnerLogos = {
+  psz: require('../../assets/images/partners/psz.png'),
+};
 
 const covers = {
   faq: require('../../assets/images/articles/covers/family-planning-faq.jpg'),
@@ -180,14 +193,13 @@ const getArticleCoverSource = (article: Article): ImageSourcePropType => {
   return { uri: categoryFallbackImages[article.category] ?? categoryFallbackImages['General Health'] };
 };
 
-const tabs = ['All', 'Everyday Health', 'Prevention', 'Symptoms Guide', "Women's Health", 'Healthy Living'];
-
 // Full content reproduced from Population Services Zimbabwe (PSZ) booklets, used with permission.
 const localArticles: Article[] = [
   {
     title: 'Frequently Asked Questions: Birth Control, Staying Healthy & Preparing for the Future',
     category: 'Family Planning',
     readTime: '10 min read',
+    summary: 'Straight answers to the questions people ask most about contraceptives, side effects, and staying safe.',
     image: covers.faq,
     content: [
       {
@@ -276,6 +288,7 @@ const localArticles: Article[] = [
     title: 'Know Your Family Planning Methods',
     category: 'Family Planning',
     readTime: '9 min read',
+    summary: 'A rundown of every contraceptive option available — how each one works, how long it lasts, and what to expect.',
     image: covers.fpMethods,
     content: [
       { heading: 'Benefits of Family Planning', text: "Gives you control over your life and choices. It can reduce menstrual challenges. Helps recover emotionally and physically after pregnancy. Spacing contributes to healthier families. Stronger families plan together — shared decision making in family planning leads to stronger relationships and respect. Works for all regardless of physical impairment, race, age, religion or class. All family planning methods other than condoms do not protect against STIs including HIV and AIDS.", image: fpImg.benefits },
@@ -298,6 +311,7 @@ const localArticles: Article[] = [
     title: 'Menstrual Hygiene Management: A Complete Guide',
     category: 'Menstrual Health',
     readTime: '12 min read',
+    summary: 'Everything about periods — hygiene, pain relief, product options, and when irregular cycles are worth a doctor visit.',
     image: covers.menstrualHygiene,
     content: [
       { heading: 'A Brief Introduction', text: 'This booklet has been written to help young girls manage the critical period from the time when they enter adolescence. Adolescence is the time during which boys and girls grow from childhood into adulthood and changes take place in their bodies. During this period, known as puberty, menstruation starts in girls.\n\nMenstruation is commonly called a period or MPs (menstrual period). Menstruation is basically the monthly discharge of blood from the uterus through the vagina of non-pregnant girls and women, from puberty to menopause. The menstruation or bleeding usually lasts from about three to seven days, though some girls\u2019 bleeding may last longer. The whole menstrual process or cycle takes about 28 days from the first day of your MPs, though in a few cases cycles may last as many as 34 days or as few as 19 days.', image: mhmImg.briefIntroduction },
@@ -322,6 +336,7 @@ const localArticles: Article[] = [
     title: 'Wise Up! Your Guide to Birth Control, Staying Healthy & Preparing for the Future You Want',
     category: 'Family Planning',
     readTime: '11 min read',
+    summary: 'A youth-focused guide to contraceptives, emergency options, STIs, and knowing your rights.',
     image: covers.wiseUp,
     content: [
       { heading: 'Abstinence', text: "The best way to stay in touch with your dreams, maintain your ego and stay clear of pregnancy and STIs is abstinence. It is wise to know the risks of sex before you engage in any sexual act: you can get pregnant even the first time you have sex, you can get an STI including HIV, and you can have your heart broken or feel let down when it's over. The Facts: Abstinence is 100% effective in preventing pregnancy. You stay clear of STIs including HIV and AIDS if you abstain. You can pursue your life goals and career without disruption from unplanned pregnancy — it's worth 'the wait.' You maintain your ego intact. If nature calls and you fail to abstain, use a condom correctly and consistently, and use an Emergency Contraceptive 'Morning After' pill within 120 hours in the event of unprotected sex, condom burst/slip, or inconsistent condom use.", image: wiseUpImg.abstinence },
@@ -339,38 +354,44 @@ const localArticles: Article[] = [
   },
 ];
 
+// Tabs are derived from the categories that actually exist in
+// localArticles, instead of a hand-typed list — so a tab is never shown
+// unless there's real content behind it, and filtering (below) always
+// has something to match against.
+const tabs = ['All', ...Array.from(new Set(localArticles.map(a => a.category)))];
+
 export default function ArticlesScreen() {
   const insets = useSafeAreaInsets();
-  const [country, setCountry] = useState('');
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Article | null>(null);
   const [activeTab, setActiveTab] = useState('All');
 
   useEffect(() => {
-    detectAndLoad();
-  }, []);
-
-  const detectAndLoad = async () => {
-    setLoading(true);
-    let detectedCountry = 'Zimbabwe';
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({});
-        const geo = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-        if (geo[0]?.country) detectedCountry = geo[0].country;
-      }
-    } catch (e) {
-      console.log('Using default country');
-    }
-    setCountry(detectedCountry);
     setArticles(localArticles);
     setLoading(false);
-  };
+  }, []);
+
+  // Android hardware back button: while an article is open, back should
+  // return to the list (not pop this whole screen off the nav stack).
+  // Returning `true` tells BackHandler we handled it ourselves; returning
+  // `false` when no article is open lets normal back-navigation happen.
+  useEffect(() => {
+    const onBackPress = () => {
+      if (selected) {
+        setSelected(null);
+        return true;
+      }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [selected]);
+
+  // Real filtering, matched against the category values derived into
+  // `tabs` above — 'All' shows everything, any other tab shows only
+  // articles whose category matches it exactly.
+  const filteredArticles = activeTab === 'All' ? articles : articles.filter(a => a.category === activeTab);
 
   if (selected) {
     return (
@@ -424,7 +445,7 @@ export default function ArticlesScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>Health Articles</Text>
+            <Text style={styles.headerTitle}>Wellness Hub</Text>
             <Text style={styles.headerSub}>Discover. Learn. Connect.</Text>
           </View>
         </View>
@@ -452,8 +473,13 @@ export default function ArticlesScreen() {
             <ActivityIndicator color={colors.accentGreen} size="large" />
             <Text style={styles.loadingText}>Loading articles...</Text>
           </View>
+        ) : filteredArticles.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <Ionicons name="file-tray-outline" size={40} color={colors.text.secondary} />
+            <Text style={styles.loadingText}>No articles in this category yet.</Text>
+          </View>
         ) : (
-          articles.map((article, i) => (
+          filteredArticles.map((article, i) => (
             <TouchableOpacity key={i} style={styles.card} onPress={() => setSelected(article)}>
               <Image source={getArticleCoverSource(article)} style={styles.cardImage} resizeMode="contain" />
               <View style={styles.cardContent}>
@@ -464,7 +490,7 @@ export default function ArticlesScreen() {
                   </Text>
                 </View>
                 <Text style={styles.cardTitle}>{article.title}</Text>
-                <Text style={styles.cardSummary} numberOfLines={2}>{article.content[0]?.text}</Text>
+                <Text style={styles.cardSummary} numberOfLines={2}>{article.summary}</Text>
                 <View style={styles.cardMeta}>
                   <Ionicons name="time-outline" size={12} color={colors.text.secondary} />
                   <Text style={styles.readTime}>{article.readTime}</Text>
@@ -474,21 +500,20 @@ export default function ArticlesScreen() {
           ))
         )}
 
-        <View style={styles.trustBanner}>
-          <Text style={styles.trustTitle}>🛡️ Trusted. Verified. Written for You.</Text>
-          <Text style={styles.trustDesc}>Content reproduced directly from Population Services Zimbabwe (PSZ) reproductive health booklets, used with permission.</Text>
-          <View style={styles.trustBadges}>
-            <View style={styles.trustBadge}>
-              <Text style={styles.trustBadgeIcon}>👥</Text>
-              <Text style={styles.trustBadgeText}>Expert Reviewed</Text>
+        <View style={styles.partnersBanner}>
+          <View style={styles.partnersTitleRow}>
+            <Ionicons name="people" size={18} color={colors.accentGreen} />
+            <Text style={styles.partnersTitle}>Our Partners</Text>
+          </View>
+          <View style={styles.partnerCard}>
+            <View style={styles.partnerLogoWrap}>
+              <Image source={partnerLogos.psz} style={styles.partnerLogoImg} resizeMode="contain" />
             </View>
-            <View style={styles.trustBadge}>
-              <Text style={styles.trustBadgeIcon}>🔬</Text>
-              <Text style={styles.trustBadgeText}>Evidence Based</Text>
-            </View>
-            <View style={styles.trustBadge}>
-              <Text style={styles.trustBadgeIcon}>📄</Text>
-              <Text style={styles.trustBadgeText}>Verbatim Source</Text>
+            <View style={styles.partnerInfo}>
+              <Text style={styles.partnerName}>Population Services Zimbabwe</Text>
+              <Text style={styles.partnerDesc}>
+                All content in the Wellness Hub is reproduced with permission from PSZ's reproductive health booklets.
+              </Text>
             </View>
           </View>
         </View>
@@ -506,8 +531,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: fontSizes.xl, fontWeight: '800', color: colors.white, marginBottom: 2 },
   headerSub: { fontSize: fontSizes.xs, color: colors.accentGreenLight, fontWeight: '500' },
   backBtn: { marginBottom: spacing.sm },
-  countryBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(29,158,117,0.2)', borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderWidth: 1, borderColor: 'rgba(93,202,165,0.4)' },
-  countryText: { color: colors.accentGreenLight, fontSize: fontSizes.xs, fontWeight: '600' },
   tabsScroll: { backgroundColor: colors.navBackground, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)', maxHeight: 48 },
   tabs: { flexDirection: 'row', gap: spacing.sm, padding: spacing.sm, paddingHorizontal: spacing.md },
   tab: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)' },
@@ -539,11 +562,36 @@ const styles = StyleSheet.create({
   blockImage: { width: '100%', aspectRatio: 210 / 297, borderRadius: borderRadius.md, marginTop: spacing.sm, backgroundColor: colors.border },
   disclaimer: { backgroundColor: '#fff8e6', borderLeftWidth: 3, borderLeftColor: colors.warning, padding: spacing.sm, borderRadius: borderRadius.sm, marginTop: spacing.lg },
   disclaimerText: { fontSize: fontSizes.xs, color: '#5a3e00', lineHeight: 18 },
-  trustBanner: { backgroundColor: colors.card, borderRadius: borderRadius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
-  trustTitle: { fontSize: fontSizes.md, fontWeight: '700', color: colors.navBackground, marginBottom: spacing.xs },
-  trustDesc: { fontSize: fontSizes.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: spacing.md },
-  trustBadges: { flexDirection: 'row', gap: spacing.lg },
-  trustBadge: { alignItems: 'center', gap: 4 },
-  trustBadgeIcon: { fontSize: fontSizes.xl },
-  trustBadgeText: { fontSize: fontSizes.xs, color: colors.text.secondary, fontWeight: '600', textAlign: 'center' },
+  // "Our Partners" section — credits PSZ as the source org for all
+  // Wellness Hub content. Sits at the bottom of the article LIST screen
+  // only (individual articles already carry their own PSZ disclaimer at
+  // the end of each piece).
+  partnersBanner: { marginBottom: spacing.md },
+  partnersTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
+  partnersTitle: { fontSize: fontSizes.md, fontWeight: '700', color: colors.navBackground },
+  partnerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  partnerLogoWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  partnerLogoImg: { width: '100%', height: '100%' },
+  partnerInfo: { flex: 1 },
+  partnerName: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.navBackground, marginBottom: 2 },
+  partnerDesc: { fontSize: fontSizes.xs, color: colors.text.secondary, lineHeight: 17 },
 });

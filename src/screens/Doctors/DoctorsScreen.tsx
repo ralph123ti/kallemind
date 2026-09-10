@@ -70,6 +70,49 @@ const specialties = [
 const sanitizePhone = (value?: string | null) => (value ? value.replace(/\D/g, '') : '');
 
 // ---------------------------------------------------------------------
+// Regulatory / verification disclaimer, shown once at the top of the
+// Doctors Directory, above the search bar. Every string goes through
+// `t()` with an English fallback, matching the rest of this file's
+// i18n convention — translate these keys in your locale files whenever
+// you're ready; until then the fallback text below is what renders.
+// ---------------------------------------------------------------------
+function DirectoryDisclaimer({ t }: { t: (k: string, d?: string) => string }) {
+  return (
+    <View style={styles.disclaimerBox}>
+      <Text style={styles.disclaimerTitle}>{t('directoryDisclaimerTitle', 'DISCLAIMER')}</Text>
+
+      <Text style={styles.disclaimerParagraph}>
+        {t(
+          'directoryDisclaimerIntro',
+          'KalleMind is an independent information directory only. We do not provide medical, veterinary diagnosis, treatment, or telemedicine services.'
+        )}
+      </Text>
+
+      <Text style={styles.disclaimerParagraph}>
+        {t(
+          'directoryDisclaimerVerification',
+          'All human healthcare practitioners listed are verified against the Medical and Dental Practitioners Council of Zimbabwe / Health Professions Authority registers. All veterinary practitioners listed are verified against the Veterinarians Council of Zimbabwe register.'
+        )}
+      </Text>
+
+      <Text style={styles.disclaimerParagraph}>
+        {t(
+          'directoryDisclaimerEndorsement',
+          'Listing on KalleMind does not constitute endorsement by MOHCC, HPA, MDPCZ, or VCZ. Practitioner information is provided by the practitioners and verified against public registers. We remove any practitioner immediately upon notification of suspension or deregistration by the relevant council.'
+        )}
+      </Text>
+
+      <Text style={styles.disclaimerParagraph}>
+        {t(
+          'directoryDisclaimerEmergency',
+          'For medical or veterinary emergencies, please contact your nearest hospital, clinic, or registered practitioner directly.'
+        )}
+      </Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------
 // Accessibility section.
 // Collapsed by default to a single compact summary bar (icon + title +
 // a quick "N of 3 available" hint + chevron), so clinic cards stay short
@@ -328,6 +371,10 @@ export default function DoctorsScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Regulatory disclaimer — shown once, above search/filters, before
+            any doctor cards render. See DirectoryDisclaimer above. */}
+        <DirectoryDisclaimer t={t} />
+
         {/* Search */}
         <View style={styles.searchRow}>
           <Ionicons name="search" size={16} color={colors.text.secondary} style={styles.searchIcon} />
@@ -491,6 +538,32 @@ const styles = StyleSheet.create({
   header: { backgroundColor: colors.navBackground, padding: spacing.lg },
   headerTitle: { fontSize: fontSizes.xl, fontWeight: '800', color: colors.white, marginBottom: 2 },
   headerSub: { fontSize: fontSizes.xs, color: colors.accentGreenLight, fontWeight: '500' },
+
+  // Regulatory disclaimer banner — same visual pattern used for the
+  // Wellness Hub's "not medical advice" note, so the app stays consistent.
+  disclaimerBox: {
+    backgroundColor: '#fff8e6',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+  },
+  disclaimerTitle: {
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    color: '#5a3e00',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  disclaimerParagraph: {
+    fontSize: fontSizes.xs,
+    color: '#5a3e00',
+    lineHeight: 18,
+    marginBottom: spacing.xs,
+  },
+
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, margin: spacing.md, paddingHorizontal: spacing.md },
   searchIcon: { marginRight: spacing.sm },
   search: { flex: 1, padding: spacing.md, color: colors.text.primary, fontSize: fontSizes.sm },

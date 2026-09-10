@@ -199,20 +199,35 @@ export default function SubscriptionScreen({ navigation }: any) {
           <TouchableOpacity
             key={plan.id}
             activeOpacity={0.8}
-            style={[styles.planCard, selected === plan.id && { borderColor: plan.color, borderWidth: 2 }]}
+            style={[
+              styles.planCard,
+              { borderColor: plan.color, borderWidth: selected === plan.id ? 3 : 2 },
+            ]}
             onPress={() => setSelected(plan.id)}
           >
             {plan.popular && (
               <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
-                <Text style={styles.popularText}>Best for everyday users</Text>
+                <Text style={styles.popularText} numberOfLines={1}>Best for everyday users</Text>
               </View>
             )}
 
-            <Text style={[styles.planName, { color: plan.color }]}>{plan.name}</Text>
+            <Text style={[styles.planName, { color: plan.color }]} numberOfLines={1}>
+              {plan.name}
+            </Text>
+
             <View style={styles.priceRow}>
-              <Text style={[styles.planPrice, { color: colors.navBackground }]}>{plan.price}</Text>
-              <Text style={styles.planPeriod}>{plan.period}</Text>
+              <Text
+                style={[styles.planPrice, { color: colors.navBackground }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {plan.price}
+              </Text>
+              <Text style={styles.planPeriod}>
+                {plan.period}
+              </Text>
             </View>
+
             <Text style={styles.planDesc}>{plan.desc}</Text>
 
             <View style={styles.divider} />
@@ -235,7 +250,12 @@ export default function SubscriptionScreen({ navigation }: any) {
               {purchasing && selected === plan.id ? (
                 <ActivityIndicator color={selected === plan.id ? colors.white : plan.color} />
               ) : (
-                <Text style={[styles.planBtnText, { color: selected === plan.id ? colors.white : plan.color }]}>
+                <Text
+                  style={[styles.planBtnText, { color: selected === plan.id ? colors.white : plan.color }]}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                >
                   {plan.id === 'free' ? 'Get Started Free' : `Start ${plan.name} — ${plan.price}/mo`}
                 </Text>
               )}
@@ -256,7 +276,7 @@ export default function SubscriptionScreen({ navigation }: any) {
               style={[styles.infoItem, i < infoSections.length - 1 && styles.infoItemBorder]}
             >
               <Ionicons name={section.icon} size={18} color={colors.accentGreen} style={{ marginTop: 2 }} />
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.infoTitle}>{section.title}</Text>
                 <Text style={styles.infoBody}>{section.body}</Text>
               </View>
@@ -266,10 +286,6 @@ export default function SubscriptionScreen({ navigation }: any) {
 
         <Text style={styles.mission}>
           We believe health education should be simple, accessible, and available globally. Premium subscriptions help us continue improving content and expanding access worldwide.
-        </Text>
-
-        <Text style={styles.footer}>
-          {t('common.save')}
         </Text>
       </View>
 
@@ -335,8 +351,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2, // overridden inline per-card with the plan's own color
   },
   popularBadge: {
     borderRadius: borderRadius.full,
@@ -344,6 +359,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     alignSelf: 'flex-start',
     marginBottom: spacing.sm,
+    maxWidth: '100%',
   },
   popularText: {
     color: colors.white,
@@ -360,13 +376,15 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    flexWrap: 'wrap',
     gap: spacing.xs,
     marginBottom: spacing.xs,
   },
   planPrice: {
     fontSize: fontSizes.xxxl,
     fontWeight: '800',
-    lineHeight: 36,
+    lineHeight: 40,
+    flexShrink: 1,
   },
   planPeriod: {
     fontSize: fontSizes.sm,
@@ -393,6 +411,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.text.primary,
     flex: 1,
+    minWidth: 0,
   },
   planBtn: {
     borderRadius: borderRadius.md,
@@ -403,6 +422,7 @@ const styles = StyleSheet.create({
   planBtnText: {
     fontWeight: '700',
     fontSize: fontSizes.sm,
+    textAlign: 'center',
   },
   restoreBtn: {
     alignItems: 'center',
@@ -458,12 +478,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: spacing.md,
     fontStyle: 'italic',
-  },
-  footer: {
-    fontSize: fontSizes.xs,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: spacing.sm,
   },
 });

@@ -30,7 +30,14 @@ const BUBBLES = Array.from({ length: 12 }, (_, i) => ({
   opacity: Math.random() * 0.3 + 0.1,
 }));
 
-export default function SplashScreen({ navigation }: any) {
+interface SplashScreenProps {
+  // Called once the intro animation finishes. Navigation decides what
+  // comes next (auth screen vs. main app) — this component no longer
+  // knows or cares.
+  onDone: () => void;
+}
+
+export default function SplashScreen({ onDone }: SplashScreenProps) {
   const logoFlip = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.8)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -135,10 +142,10 @@ export default function SplashScreen({ navigation }: any) {
       runBubble();
     });
 
-    // Exit
+    // Exit — hand control back to Navigation instead of routing ourselves
     const timer = setTimeout(() => {
       Animated.timing(contentOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-        navigation.replace('Main');
+        onDone();
       });
     }, 3300);
 
@@ -218,11 +225,6 @@ export default function SplashScreen({ navigation }: any) {
       <Animated.View style={[styles.content, { opacity: contentOpacity }]}>
         {/* Logo stage: rings, glow, and logo all share the same center point now */}
         <View style={styles.logoStage}>
-          {/* Concentric rings — anchored to logoStage's center via top/left 50% + negative translate,
-              the same reference point the logo itself centers on. Previously these used
-              screen-height-based `top` offsets which assumed the logo sat at exact screen
-              center; it doesn't, because `content` also includes the tagline and progress bar,
-              which shifts the logo upward. That mismatch was the misalignment. */}
           <Animated.View
             style={[
               styles.ring,
@@ -374,10 +376,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderStyle: 'solid',
   },
-  // Concentric rings now live inside logoStage and are centered via
-  // top: '50%' / left: '50%' + negative translateX/Y (half their own size),
-  // so their center always matches the logo's center regardless of screen
-  // aspect ratio or how much space the tagline/progress bar take up.
   ringInner: {
     width: width * 0.65,
     height: width * 0.65,
@@ -402,7 +400,6 @@ const styles = StyleSheet.create({
     top: '50%',
     left: '50%',
   },
-  // Decorative corner rings — deliberately off-center, anchored to the screen edges
   ringTopLeft: {
     width: width * 0.55,
     height: width * 0.55,
@@ -441,18 +438,16 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     backgroundColor: colors.accentGreen,
   },
-  // White circular patch sized a bit larger than the logo so it always shows
-  // a clean white edge around the logo regardless of the logo's own aspect ratio
   logoWhiteBacking: {
     position: 'absolute',
-    width: width * 0.62,
-    height: width * 0.62,
-    borderRadius: (width * 0.62) / 2,
+    width: width * 0.78,
+    height: width * 0.78,
+    borderRadius: (width * 0.78) / 2,
     backgroundColor: '#ffffff',
   },
   logo: {
-    width: width * 0.5,
-    height: width * 0.27,
+    width: width * 0.68,
+    height: width * 0.37,
   },
   tagline: {
     fontSize: fontSizes.md,

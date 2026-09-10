@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 import DisclaimerBanner from '../components/DisclaimerBanner';
+import { useAuth } from '../context/AuthContext';
 
 import HomeScreen from '../screens/Home/HomeScreen';
 import SymptomCheckerScreen from '../screens/SymptomChecker/SymptomCheckerScreen';
@@ -19,12 +20,16 @@ import DoctorSubscriptionScreen from '../screens/Subscription/DoctorSubscription
 import SplashScreen from '../screens/Splash/SplashScreen';
 import TermsScreen from '../screens/Terms/TermsScreen';
 import HelpScreen from '../screens/Help/HelpScreen';
-// New: Privacy Policy and Health Disclaimer screens, both live in screens/Legal
 import PrivacyPolicyScreen from '../screens/Legal/PrivacyPolicyScreen';
 import HealthDisclaimerScreen from '../screens/Legal/HealthDisclaimerScreen';
+// AuthScreen import kept (commented) so it's easy to re-enable auth later.
+// import AuthScreen from '../screens/Auth/AuthScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Set this to true to re-enable the sign-in/sign-up gate.
+const AUTH_ENABLED = false;
 
 const tabIcons: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
   Home: { active: 'home', inactive: 'home-outline' },
@@ -78,20 +83,43 @@ function MainTabs() {
 }
 
 export default function Navigation() {
+  const { user, loading: authLoading } = useAuth();
+  // Plain in-memory state (not persisted) — resets every time the app is
+  // fully closed and reopened, so the splash plays on every launch.
+  const [splashDone, setSplashDone] = useState(false);
+
+  if (AUTH_ENABLED && authLoading) {
+    return <View style={{ flex: 1, backgroundColor: colors.navBackground }} />;
+  }
+
+  // With AUTH_ENABLED = false, "signed in" is treated as always true so we
+  // fall straight through to Main once the splash is done.
+  const isSignedIn = AUTH_ENABLED ? !!user : true;
+
   return (
     <View style={{ flex: 1 }}>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="Subscription" component={SubscriptionScreen} />
-          {/* New: doctor paywall, reached at the end of doctor signup/onboarding */}
-          <Stack.Screen name="DoctorSubscription" component={DoctorSubscriptionScreen} />
-          <Stack.Screen name="Terms" component={TermsScreen} />
-          <Stack.Screen name="Help" component={HelpScreen} />
-          {/* New: reachable from Profile > Legal */}
-          <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-          <Stack.Screen name="HealthDisclaimer" component={HealthDisclaimerScreen} />
+          {!splashDone ? (
+            // Plays every time the app opens, not just once.
+            <Stack.Screen name="Splash" options={{ gestureEnabled: false }}>
+              {() => <SplashScreen onDone={() => setSplashDone(true)} />}
+            </Stack.Screen>
+          ) : isSignedIn ? (
+            <>
+              <Stack.Screen name="Main" component={MainTabs} />
+              <Stack.Screen name="Subscription" component={SubscriptionScreen} />
+              <Stack.Screen name="DoctorSubscription" component={DoctorSubscriptionScreen} />
+              <Stack.Screen name="Terms" component={TermsScreen} />
+              <Stack.Screen name="Help" component={HelpScreen} />
+              <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+              <Stack.Screen name="HealthDisclaimer" component={HealthDisclaimerScreen} />
+            </>
+          ) : (
+            // Unreachable while AUTH_ENABLED is false, kept for when it's
+            // switched back on.
+            <View style={{ flex: 1 }} />
+          )}
         </Stack.Navigator>
       </NavigationContainer>
       <DisclaimerBanner />

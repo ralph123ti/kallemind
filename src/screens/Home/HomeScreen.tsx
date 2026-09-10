@@ -148,9 +148,6 @@ export default function HomeScreen({ navigation }: any) {
 
         {/* Hero */}
         <View style={styles.hero}>
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>{t('heroBadge')}</Text>
-          </View>
           <Text style={styles.heroTitle}>{t('heroTitle')}{'\n'}<Text style={styles.heroTitleGreen}>{t('heroGlobal')}</Text></Text>
           <Text style={styles.heroSub}>{t('heroSub')}</Text>
           <View style={styles.statsRow}>
@@ -195,18 +192,17 @@ export default function HomeScreen({ navigation }: any) {
         onPress={() => navigation.navigate('Subscription')}
         accessibilityRole="button"
         accessibilityLabel={t('unlockAccess')}
+        activeOpacity={0.85}
       >
-        <Text style={styles.upgradeStripTitle}>{t('unlockAccess')}</Text>
-        {/* Prices stay as raw numbers/currency — not translated, but the
-            surrounding wording ("month", "Pro") now comes from t() if you
-            want it localized. Kept as-is here since the original had it
-            hardcoded with special spacing; wire up `t('perMonth')`-style
-            keys later if you want the whole sentence localized. */}
-        <Text style={styles.upgradeStripSub}>
-          $5.99{'\u00A0/\u00A0'}month{'\u00A0·\u00A0'}$9.99{'\u00A0/\u00A0'}month Pro
-        </Text>
+        <View style={styles.upgradeStripTextBox}>
+          <Text style={styles.upgradeStripTitle} numberOfLines={1}>{t('unlockAccess')}</Text>
+          <Text style={styles.upgradeStripSub} numberOfLines={2}>
+            $5.99/month{'\u00A0·\u00A0'}$9.99/month Pro
+          </Text>
+        </View>
         <View style={styles.upgradeStripBtn}>
           <Text style={styles.upgradeStripBtnText}>{t('upgrade')}</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.accentGreenDark} />
         </View>
       </TouchableOpacity>
 
@@ -275,9 +271,7 @@ const styles = StyleSheet.create({
   headerIcons: { flexDirection: 'row', flexShrink: 0, gap: spacing.sm },
   headerIcon: { padding: spacing.xs, position: 'relative' },
   notifDot: { position: 'absolute', top: 2, right: 2, width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accentGreen },
-  hero: { padding: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.lg, alignItems: 'center' },
-  heroBadge: { backgroundColor: 'rgba(29,158,117,0.2)', borderWidth: 1, borderColor: 'rgba(29,158,117,0.4)', borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.sm },
-  heroBadgeText: { color: colors.accentGreenLight, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.5 },
+  hero: { padding: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.lg, alignItems: 'center' },
   heroTitle: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.white, textAlign: 'center', lineHeight: 30, marginBottom: spacing.sm },
   heroTitleGreen: { color: colors.accentGreen },
   heroSub: { fontSize: fontSizes.sm, color: colors.text.nav, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
@@ -296,25 +290,34 @@ const styles = StyleSheet.create({
   ubar: { height: 6, backgroundColor: colors.border, borderRadius: borderRadius.full, overflow: 'hidden' },
   ufill: { height: '100%', borderRadius: borderRadius.full },
   upgradeStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: colors.accentGreen,
     borderRadius: borderRadius.md,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
+  upgradeStripTextBox: { flex: 1, minWidth: 0, paddingRight: spacing.xs },
   upgradeStripTitle: { color: colors.white, fontSize: fontSizes.sm, fontWeight: '700' },
   upgradeStripSub: {
     color: 'rgba(255,255,255,0.75)',
     fontSize: fontSizes.xs,
     marginTop: 1,
-    marginBottom: spacing.sm,
+    lineHeight: 15,
   },
   upgradeStripBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
     backgroundColor: colors.white,
     borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    alignSelf: 'flex-start',
+    flexShrink: 0,
   },
   upgradeStripBtnText: { color: colors.accentGreenDark, fontSize: fontSizes.xs, fontWeight: '700' },
   sectionLbl: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.accentGreen },

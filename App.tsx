@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, ScrollView } from 'react-native';
 import Navigation from './src/navigation';
 import { initI18n } from './src/i18n';
+import { AuthProvider } from './src/context/AuthContext';
 
 type ErrorBoundaryProps = { children: React.ReactNode };
 type ErrorBoundaryState = { error: Error | null; info: string };
@@ -69,8 +70,10 @@ export default function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <StatusBar style="light" backgroundColor="#0d2137" />
-        <Navigation />
+        <AuthProvider>
+          <StatusBar style="light" backgroundColor="#0d2137" />
+          <Navigation />
+        </AuthProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );
