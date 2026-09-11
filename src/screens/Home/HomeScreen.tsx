@@ -110,7 +110,7 @@ export default function HomeScreen({ navigation }: any) {
       {/* Dark Navy Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.logoRow}>
-          {/* White patch behind the logo so it doesn't blend into the dark header */}
+          {/* Black patch behind the logo so it doesn't blend into the dark header */}
           <View style={styles.logoImgWrap}>
             <Image
               source={require('../../../assets/logo.png')}
@@ -148,7 +148,7 @@ export default function HomeScreen({ navigation }: any) {
 
         {/* Hero */}
         <View style={styles.hero}>
-          <Text style={styles.heroTitle}>{t('heroTitle')}{'\n'}<Text style={styles.heroTitleGreen}>{t('heroGlobal')}</Text></Text>
+          <Text style={styles.heroTitle}>{t('heroTitle')}</Text>
           <Text style={styles.heroSub}>{t('heroSub')}</Text>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
@@ -254,16 +254,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { backgroundColor: colors.navBackground },
   logoRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, gap: spacing.sm },
-  // White circular patch behind the logo image so it doesn't blend into the dark header
+  // Black patch behind the logo image so it doesn't blend into the dark header
   logoImgWrap: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoImg: { width: 34, height: 34, borderRadius: 4 },
+  logoImg: { width: 24, height: 36, borderRadius: 4 }, // 2:3 ratio matching the real logo.png (720x1080)
   logoTextBox: { flex: 1, minWidth: 0 },
   logoText: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.white, lineHeight: 20 },
   logoGreen: { color: colors.accentGreen },

@@ -274,10 +274,10 @@ export default function SplashScreen({ onDone }: SplashScreenProps) {
           {/* Logo glow */}
           <Animated.View style={[styles.logoGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
 
-          {/* White circular patch behind the logo so it doesn't blend into the dark background */}
-          <View style={styles.logoWhiteBacking} />
-
-          {/* Logo */}
+          {/* Logo — sized to match the source art's real 720x1080 (2:3) aspect ratio,
+              so resizeMode="contain" doesn't shrink it into empty space. The PNG
+              already has its own black background baked in, so no separate
+              backing shape is needed behind it. */}
           <Animated.View style={{
             opacity: logoOpacity,
             transform: [{ perspective: 900 }, { rotateY }, { scale: logoScale }],
@@ -438,16 +438,9 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     backgroundColor: colors.accentGreen,
   },
-  logoWhiteBacking: {
-    position: 'absolute',
-    width: width * 0.78,
-    height: width * 0.78,
-    borderRadius: (width * 0.78) / 2,
-    backgroundColor: '#ffffff',
-  },
   logo: {
-    width: width * 0.68,
-    height: width * 0.37,
+    width: width * 0.6,
+    height: width * 0.6 * 1.5, // 720:1080 = 2:3 aspect ratio of the source PNG
   },
   tagline: {
     fontSize: fontSizes.md,

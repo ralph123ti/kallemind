@@ -8,12 +8,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, fontSizes, borderRadius } from '../../theme';
 import { MONTHLY_USES_KEY, FREE_MONTHLY_LIMIT } from '../../store/storageKeys';
+
+// TODO: move this alongside your other keys in ../../store/storageKeys and
+// import it from there instead, for consistency with MONTHLY_USES_KEY etc.
+const DISCLAIMER_AGREED_KEY = 'disclaimerAgreedV1';
 
 const commonSymptoms = [
   'Headache', 'Fever', 'Cough', 'Fatigue',
@@ -107,6 +112,10 @@ export default function SymptomCheckerScreen({ route, navigation }: any) {
   const [prepResult, setPrepResult] = useState<PrepResult | null>(null);
   const [usesRemaining, setUsesRemaining] = useState(FREE_MONTHLY_LIMIT);
 
+  // Disclaimer gate: null while we're still checking storage (so we don't
+  // flash the modal for users who already agreed), true/false once known.
+  const [hasAgreed, setHasAgreed] = useState<boolean | null>(null);
+
   // Reset per-mode state when the same screen is reused for the other mode
   // (e.g. user goes Home → Symptom Checker → back → Doctor Prep Sheet)
   // instead of carrying over stale results from the previous mode.
@@ -130,6 +139,45 @@ export default function SymptomCheckerScreen({ route, navigation }: any) {
       }
     })();
   }, []);
+
+  // Check whether the user has already agreed to the disclaimer before.
+  // Re-checked every time this screen mounts so it also covers the
+  // Home → Symptom Checker → back → Doctor Prep Sheet flow correctly.
+  useEffect(() => {
+    (async () => {
+      try {
+        const agreed = await AsyncStorage.getItem(DISCLAIMER_AGREED_KEY);
+        setHasAgreed(agreed === 'true');
+      } catch {
+        // If storage fails, default to showing the disclaimer — safer to
+        // ask again than to silently skip it.
+        setHasAgreed(false);
+      }
+    })();
+  }, []);
+
+  const acceptDisclaimer = async () => {
+    setHasAgreed(true);
+    try {
+      await AsyncStorage.setItem(DISCLAIMER_AGREED_KEY, 'true');
+    } catch {
+      // Non-fatal — worst case they see the modal again next visit.
+    }
+  };
+
+  // Cancel used to call navigation.goBack() unconditionally. On web (and on
+  // any screen reached without a prior history entry — e.g. deep link, or
+  // this being the first screen in the stack) goBack() silently no-ops,
+  // which left the modal stuck on screen with no way to dismiss it. Now we
+  // only go back if there's actually somewhere to go back to, and fall
+  // back to a known safe screen (Home) otherwise.
+  const declineDisclaimer = () => {
+    if (navigation.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Home');
+    }
+  };
 
   const toggleSymptom = (s: string) => {
     setSelected(prev =>
@@ -240,6 +288,48 @@ export default function SymptomCheckerScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
+      {/* Disclaimer gate — blocks interaction with the rest of the screen
+          until the user explicitly agrees this tool is informational only,
+          not a diagnosis. hasAgreed === null means we're still reading
+          storage, so we intentionally render nothing for the modal yet. */}
+      <Modal
+        visible={hasAgreed === false}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {}} // Android back button: force explicit choice, don't let it dismiss silently
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="information-circle" size={32} color={colors.accentGreen} />
+            </View>
+            <Text style={styles.modalTitle}>Before you continue</Text>
+            <Text style={styles.modalBody}>
+              KalleMind gives general health information only.{'\n'}
+              It does not diagnose, prescribe, or replace a doctor or nurse.{'\n'}
+              We do not save or store your symptoms.{'\n'}
+              In an emergency, call your local emergency number or visit your nearest clinic immediately.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalAgreeBtn}
+              onPress={acceptDisclaimer}
+              accessibilityRole="button"
+              accessibilityLabel="I Understand — this is not a diagnosis"
+            >
+              <Text style={styles.modalAgreeBtnText}>I Understand — This is Not a Diagnosis</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={declineDisclaimer}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel and go back"
+            >
+              <Text style={styles.modalCancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Dark Navy Header — copy now reflects which mode this actually is */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={styles.headerTitle}>{isPrep ? 'Doctor Prep Sheet' : 'Symptom Checker'}</Text>
@@ -424,6 +514,69 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f0f5fa',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 32, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  modalIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#f0faf6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: '800',
+    color: colors.navBackground,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  modalBody: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalAgreeBtn: {
+    backgroundColor: colors.accentGreen,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalAgreeBtnText: {
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    textAlign: 'center',
+  },
+  modalCancelBtn: {
+    paddingVertical: spacing.sm,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalCancelBtnText: {
+    color: colors.text.secondary,
+    fontWeight: '600',
+    fontSize: fontSizes.sm,
   },
   header: {
     backgroundColor: colors.navBackground,

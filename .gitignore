@@ -45,3 +45,4 @@ GoogleService-Info.plist
 
 # EAS
 .eas/
+.vercel
